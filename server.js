@@ -34,7 +34,10 @@ app.use((err, req, res, next) => {
     });
 });
 
-const PORT = process.env.PORT || 5000;
+const cors = require('cors');
+app.use(cors({
+  origin: 'https://web-final-0ysh.onrender.com' // URL твоего фронтенда
+}));
 app.listen(PORT, () => {
     console.log(`Server running at: http://localhost:${PORT}`);
 });
