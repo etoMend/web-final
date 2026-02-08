@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apartment Manager</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: auto; padding: 20px; background-color: #f4f4f4; }
+        .card { background: white; padding: 15px; margin-bottom: 10px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        input, select, button { display: block; width: 100%; margin: 10px 0; padding: 10px; }
+        button { background: #28a745; color: white; border: none; cursor: pointer; font-weight: bold; }
+        button:hover { opacity: 0.9; }
+        .logout-btn { background: #dc3545; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <h1>Apartment Renting & Selling</h1>
+
+    <div id="auth-box" class="card">
+        <h3>Login / Register</h3>
+        <input type="text" id="username" placeholder="Username (for register)">
+        <input type="email" id="email" placeholder="Email">
+        <input type="password" id="password" placeholder="Password">
+        <button onclick="handleAuth('register')">Register</button>
+        <button onclick="handleAuth('login')" style="background: #007bff;">Login</button>
+    </div>
+
+    <div id="app-box" class="hidden">
+        
+        <div id="weather-section"></div>
+
+        <div class="card">
+            <h3>Post New Apartment</h3>
+            <input type="text" id="title" placeholder="Title">
+            <input type="text" id="desc" placeholder="Description">
+            <input type="number" id="price" placeholder="Price">
+            <select id="type">
+                <option value="rent">Rent</option>
+                <option value="sell">Sell</option>
+            </select>
+            <button onclick="createApartment()">Post Listing</button>
+        </div>
+        <button onclick="logout()" class="logout-btn">Logout</button>
+        <div id="listings"></div>
+    </div>
+
+    <script>
+        const API_URL = '/api'; 
+        let token = localStorage.getItem('token');
+
+        if (token) showApp();
+
+        // 2. ВАЖНО: Вызов loadWeather внутри showApp
+        function showApp() {
+            document.getElementById('auth-box').classList.add('hidden');
+            document.getElementById('app-box').classList.remove('hidden');
+            
+            loadApartments(); 
+            loadWeather(); // Запускаем загрузку погоды
+        }
+
+        async function handleAuth(type) {
+            const body = {
+                email: document.getElementById('email').value,
+                password: document.getElementById('password').value,
+                username: document.getElementById('username').value
+            };
+            try {
+                const res = await fetch(`${API_URL}/auth/${type}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await res.json();
+                if (res.ok && data.token) {
+                    localStorage.setItem('token', data.token);
+                    token = data.token;
+                    showApp();
+                } else {
+                    alert(data.message || "Authentication failed");
+                }
+            } catch (err) {
+                alert("Server connection error");
+            }
+        }
+
+        async function loadApartments() {
+            if (!token) return;
+            try {
+                const res = await fetch(`${API_URL}/resource`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.status === 401) return logout();
+                const data = await res.json();
+                const container = document.getElementById('listings');
+                if (data.length === 0) {
+                    container.innerHTML = '<h3>No listings found.</h3>';
+                } else {
+                    container.innerHTML = '<h3>Current Listings</h3>' + data.map(a => `
+                        <div class="card">
+                            <h4>${a.title} - $${a.price}</h4>
+                            <p>${a.description}</p>
+                            <small>Type: ${a.type}</small>
+                        </div>
+                    `).join('');
+                }
+            } catch (err) {
+                console.error("Error loading listings:", err);
+            }
+        }
+
+        async function createApartment() {
+            const body = {
+                title: document.getElementById('title').value,
+                description: document.getElementById('desc').value,
+                price: document.getElementById('price').value,
+                type: document.getElementById('type').value
+            };
+            try {
+                const res = await fetch(`${API_URL}/resource`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(body)
+                });
+                if (res.ok) {
+                    document.getElementById('title').value = '';
+                    document.getElementById('desc').value = '';
+                    document.getElementById('price').value = '';
+                    loadApartments();
+                }
+            } catch (err) {
+                alert("Network error");
+            }
+        }
+
+        // 3. ТВОЯ КРАСИВАЯ ФУНКЦИЯ
+        async function loadWeather() {
+            const weatherContainer = document.getElementById('weather-section');
+            try {
+                const res = await fetch('/api/weather?city=Almaty', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                const data = await res.json();
+                
+                if (res.ok) {
+                    const aqiMap = ["Good", "Fair", "Moderate", "Poor", "Very Poor"];
+                    const aqiStatus = aqiMap[data.air_quality_index - 1] || "Unknown";
+
+                    weatherContainer.innerHTML = `
+                        <div class="card" style="background: #e3f2fd; border-left: 5px solid #2196f3;">
+                            <h4>🌍 Environmental Status: ${data.city}</h4>
+                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                <div>
+                                    <p><strong>Temperature:</strong> ${data.temperature}°C</p>
+                                    <p><strong>Condition:</strong> ${data.condition}</p>
+                                    <p><strong>Air Quality (AQI):</strong> 
+                                        <span style="color: ${data.air_quality_index <= 2 ? 'green' : 'orange'}">
+                                            ${aqiStatus}
+                                        </span>
+                                    </p>
+                                </div>
+                                <img src="http://openweathermap.org/img/wn/${data.icon}@2x.png" alt="weather icon">
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    console.error("Weather API error:", data.message);
+                    weatherContainer.innerHTML = `<p style="color:red;">Weather info unavailable: ${data.message}</p>`;
+                }
+            } catch (err) {
+                console.error("Weather fetch failed:", err);
+                weatherContainer.innerHTML = `<p style="color:red;">Failed to connect to Weather API</p>`;
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            location.reload();
+        }
+    </script>
+</body>
+</html>
