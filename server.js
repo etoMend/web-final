@@ -35,9 +35,16 @@ app.use((err, req, res, next) => {
 });
 
 const cors = require('cors');
+
+// Настройка CORS
 app.use(cors({
-  origin: 'https://web-final-0ysh.onrender.com' // URL твоего фронтенда
+  origin: ['https://web-final-0ysh.onrender.com', 'http://localhost:5000'],
+  credentials: true
 }));
-app.listen(PORT, () => {
-    console.log(`Server running at: http://localhost:${PORT}`);
+
+// ВАЖНО: Сначала process.env.PORT (для Render), потом PORT из .env (для локалки)
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Сервер запущен! Порт: ${PORT}`);
 });
